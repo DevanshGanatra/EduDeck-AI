@@ -1,9 +1,9 @@
-import requests
+!!!import requests
 import time
 import sys
 import uuid
 
-BASE_URL = "http://localhost:8080/api/v1"
+BASE_URL = "https://edudeck-backend.onrender.com/api/v1"
 
 def print_step(msg):
     print(f"\n[STEP] {msg}")

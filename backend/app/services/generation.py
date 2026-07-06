@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.core import Project, Presentation, Document
 from app.models.ai import GenerationJob, JobStatus
-from app.services.vector_store import VectorStore
+from app.services.retrieval import RetrievalService
 from app.services.export import ExportService
 
 class GenerationService:
@@ -16,7 +16,7 @@ class GenerationService:
         from app.core.config import settings
         genai.configure(api_key=settings.GEMINI_API_KEY)
         self.model = genai.GenerativeModel('gemini-2.5-flash')
-        self.vector_store = VectorStore()
+        self.retrieval_service = RetrievalService(db)
         self.export_service = ExportService(db)
 
     async def generate_presentation(self, prompt: str, project_id: UUID) -> str:
@@ -24,23 +24,16 @@ class GenerationService:
         Main pipeline to generate presentation from a prompt and knowledge base.
         Returns the download URL for the PPTX.
         """
-        # 1. Fetch project documents to get their IDs
+        # 1. Fetch project documents to check if we have any
         result = await self.db.execute(select(Document).where(Document.project_id == project_id))
         documents = result.scalars().all()
         
         context_chunks = []
         if documents:
-            # 2. Retrieve relevant context from Vector DB
-            # For MVP, we'll just query the first document's context if multiple exist, 
-            # or search across all by omitting document_id if we want global search.
-            # Let's search across the collection for the prompt.
-            raw_results = self.vector_store.search_similar(query=prompt, n_results=10)
-            
-            # Filter results to only include chunks from documents in this project
-            doc_ids = [str(d.id) for d in documents]
-            for res in raw_results:
-                if res["metadata"].get("document_id") in doc_ids:
-                    context_chunks.append(res["text"])
+            # 2. Retrieve relevant context from Postgres pgvector
+            results = await self.retrieval_service.retrieve(query=prompt, project_id=project_id, top_k=10)
+            for res in results:
+                context_chunks.append(res["text"])
 
         # 3. Build Prompt for LLM
         context_text = "\n\n".join(context_chunks)

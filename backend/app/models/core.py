@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Text, Integer, ForeignKey, Enum as SQLEnum, DateTime, Float
 from sqlalchemy.orm import relationship
 import enum
+from pgvector.sqlalchemy import Vector
 from app.db.base import Base, TimestampMixin
 
 class UserRole(str, enum.Enum):
@@ -113,6 +114,7 @@ class DocumentChunk(Base, TimestampMixin):
     vector_dimension = Column(Integer, nullable=True)
     vector_reference = Column(String(255), nullable=True, index=True)
     checksum = Column(String(64), nullable=True)
+    embedding = Column(Vector(1536), nullable=True)
 
     document = relationship("Document", back_populates="document_chunks")
 

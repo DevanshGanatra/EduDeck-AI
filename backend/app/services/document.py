@@ -95,29 +95,18 @@ class DocumentService:
                 # Chunk
                 chunks = self.text_chunker.process(pages)
                 
-                # Persist Chunks to Vector DB First
-                from app.services.vector_store import VectorStore
-                vector_store = VectorStore()
-                
-                # Format chunks for vector store
-                vs_chunks = []
-                for i, chunk_dict in enumerate(chunks):
-                    vs_chunks.append({
-                        "id": f"{document_id}_{i}",
-                        "text": chunk_dict["text"],
-                        "metadata": {"chunk_index": i, "page_number": chunk_dict.get("page_number", 1)}
-                    })
-                
-                # Add to Chroma
-                vector_store.add_chunks(str(document_id), vs_chunks)
-                
                 # Persist Chunks to Postgres
                 from app.db.repositories.document import DocumentChunkRepository
                 chunk_repo = DocumentChunkRepository(session)
                 chunk_persistence = ChunkPersistenceService(chunk_repo)
                 
-                # We need to pass the list of text chunks
+                # Save text chunks to the database first so they get IDs
                 await chunk_persistence.persist_chunks(document_id, chunks)
+                
+                # Generate and store pgvector embeddings
+                from app.services.vectorization import VectorizationService
+                vectorization_service = VectorizationService(session)
+                await vectorization_service.vectorize_document(document_id, doc.project_id)
                 
                 # Finalize
                 doc.total_pages = len(pages)
