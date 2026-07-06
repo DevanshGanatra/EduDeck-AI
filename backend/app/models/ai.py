@@ -24,6 +24,8 @@ class GenerationJob(Base, TimestampMixin):
     __tablename__ = "generation_jobs"
     project_id = Column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     status = Column(SQLEnum(JobStatus), default=JobStatus.PENDING, nullable=False)
+    progress = Column(Integer, default=0, nullable=False)
+    progress_text = Column(String(255), nullable=True)
     error_message = Column(Text, nullable=True)
     
     project = relationship("Project", back_populates="generation_jobs")

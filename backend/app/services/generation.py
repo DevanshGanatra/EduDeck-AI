@@ -19,11 +19,23 @@ class GenerationService:
         self.retrieval_service = RetrievalService(db)
         self.export_service = ExportService(db)
 
+    async def update_progress(self, job_id: UUID, progress: int, progress_text: str) -> None:
+        if not job_id:
+            return
+        job_res = await self.db.execute(select(GenerationJob).where(GenerationJob.id == job_id))
+        job = job_res.scalars().first()
+        if job:
+            job.progress = progress
+            job.progress_text = progress_text
+            await self.db.commit()
+
     async def generate_presentation(self, prompt: str, project_id: UUID, job_id: UUID = None) -> str:
         """
         Main pipeline to generate presentation from a prompt and knowledge base.
         Returns the download URL for the PPTX.
         """
+        await self.update_progress(job_id, 10, "Retrieving knowledge base...")
+        
         # 1. Fetch project documents to check if we have any
         result = await self.db.execute(select(Document).where(Document.project_id == project_id))
         documents = result.scalars().all()
@@ -35,6 +47,8 @@ class GenerationService:
             for res in results:
                 context_chunks.append(res["text"])
 
+        await self.update_progress(job_id, 30, "Analyzing context and synthesizing slides...")
+        
         # 3. Build Prompt for LLM
         context_text = "\n\n".join(context_chunks)
         
@@ -76,21 +90,25 @@ User Request: {prompt}
             print("Failed to decode JSON from LLM:", response_text)
             raise ValueError("Failed to generate valid presentation format from AI.")
 
+        await self.update_progress(job_id, 70, "Formatting presentation and injecting content...")
+
         # 5. Get or Create Job Record
         if job_id:
             job_res = await self.db.execute(select(GenerationJob).where(GenerationJob.id == job_id))
             job = job_res.scalars().first()
             if job:
                 job.status = JobStatus.COMPLETED
+                job.progress = 100
+                job.progress_text = "Completed"
                 await self.db.commit()
                 await self.db.refresh(job)
             else:
-                job = GenerationJob(id=job_id, project_id=project_id, status=JobStatus.COMPLETED)
+                job = GenerationJob(id=job_id, project_id=project_id, status=JobStatus.COMPLETED, progress=100)
                 self.db.add(job)
                 await self.db.commit()
                 await self.db.refresh(job)
         else:
-            job = GenerationJob(project_id=project_id, status=JobStatus.COMPLETED)
+            job = GenerationJob(project_id=project_id, status=JobStatus.COMPLETED, progress=100)
             self.db.add(job)
             await self.db.commit()
             await self.db.refresh(job)
@@ -126,6 +144,8 @@ User Request: {prompt}
             self.db.add(db_slide)
         await self.db.commit()
 
+        await self.update_progress(job_id, 90, "Uploading presentation to cloud storage...")
+
         # 6. Export to PPTX
         download_url = await self.export_service.export_presentation(presentation, presentation_data)
         
@@ -141,4 +161,5 @@ User Request: {prompt}
         if job:
             job.status = JobStatus.FAILED
             job.error_message = error_message
+            job.progress_text = "Failed"
             await self.db.commit()

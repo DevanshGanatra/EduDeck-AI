@@ -24,6 +24,8 @@ class GenerationResponse(BaseModel):
 
 class GenerationStatusResponse(BaseModel):
     status: str
+    progress: int
+    progress_text: str | None = None
     download_url: str | None = None
     error_message: str | None = None
 
@@ -89,6 +91,8 @@ async def get_generation_status(
     return success_response(
         data=GenerationStatusResponse(
             status=job.status.value,
+            progress=job.progress,
+            progress_text=job.progress_text,
             download_url=download_url,
             error_message=job.error_message
         ),
