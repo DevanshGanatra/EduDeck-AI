@@ -54,8 +54,8 @@ class ExportService:
         buffer.seek(0)
         
         # Upload via StorageService
-        from app.services.storage import get_storage_service
-        storage_service = get_storage_service()
+        from app.services.storage import LocalStorageService
+        storage_service = LocalStorageService()
         file_reference, _ = await storage_service.save_upload(buffer, filename=filename)
         
         # Return URL
