@@ -23,7 +23,7 @@ def current_user():
 @pytest.mark.asyncio
 async def test_create_project(project_service, mock_project_repo, current_user):
     project_in = ProjectCreate(title="New Project", description="Desc")
-    mock_project_repo.create.return_value = Project(id=uuid4(), title=project_in.title, user_id=current_user.id)
+    mock_project_repo.create.return_value = Project(id=uuid4(), title=project_in.title, user_id=current_user.id, status="active", created_at=datetime.utcnow(), updated_at=datetime.utcnow())
     
     project = await project_service.create_project(project_in, current_user)
     assert project.title == "New Project"
@@ -33,7 +33,7 @@ async def test_create_project(project_service, mock_project_repo, current_user):
 @pytest.mark.asyncio
 async def test_get_project_success(project_service, mock_project_repo, current_user):
     project_id = uuid4()
-    mock_project_repo.get_by_id.return_value = Project(id=project_id, title="Test", user_id=current_user.id)
+    mock_project_repo.get_by_id.return_value = Project(id=project_id, title="Test", user_id=current_user.id, status="active", created_at=datetime.utcnow(), updated_at=datetime.utcnow())
     
     project = await project_service.get_project(project_id, current_user)
     assert project.id == project_id
@@ -50,12 +50,19 @@ async def test_get_project_not_found(project_service, mock_project_repo, current
 @pytest.mark.asyncio
 async def test_update_project(project_service, mock_project_repo, current_user):
     project_id = uuid4()
-    existing_project = Project(id=project_id, title="Old Title", user_id=current_user.id)
+    existing_project = Project(id=project_id, title="Old Title", user_id=current_user.id, status="active", created_at=datetime.utcnow(), updated_at=datetime.utcnow())
     mock_project_repo.get_by_id.return_value = existing_project
-    mock_project_repo.update.return_value = existing_project # Simulate update
+    
+    # We must return an updated project with the new title
+    updated_project = Project(id=project_id, title="New Title", user_id=current_user.id, status="active", created_at=existing_project.created_at, updated_at=datetime.utcnow())
+    mock_project_repo.update.return_value = updated_project
     
     update_data = ProjectUpdate(title="New Title")
     project = await project_service.update_project(project_id, update_data, current_user)
+    
+    # Wait, the project service fetches the project again using get_project.
+    # So we need to ensure get_by_id returns the updated project on the second call.
+    mock_project_repo.get_by_id.side_effect = [existing_project, updated_project]
     
     assert project.title == "New Title"
     mock_project_repo.update.assert_called_once()
@@ -63,8 +70,8 @@ async def test_update_project(project_service, mock_project_repo, current_user):
 @pytest.mark.asyncio
 async def test_delete_project(project_service, mock_project_repo, current_user):
     project_id = uuid4()
-    existing_project = Project(id=project_id, title="Test", user_id=current_user.id)
+    existing_project = Project(id=project_id, title="Test", user_id=current_user.id, status="active", created_at=datetime.utcnow(), updated_at=datetime.utcnow())
     mock_project_repo.get_by_id.return_value = existing_project
     
     await project_service.delete_project(project_id, current_user)
-    mock_project_repo.delete.assert_called_once_with(existing_project)
+    mock_project_repo.soft_delete.assert_called_once_with(existing_project)
