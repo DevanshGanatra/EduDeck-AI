@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         return url
         
     # CORS
-    BACKEND_CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+    BACKEND_CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,https://edudeck-frontend.onrender.com"
     
     # ChromaDB Configuration
     CHROMA_HOST: Optional[str] = None
