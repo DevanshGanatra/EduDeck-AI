@@ -1,14 +1,28 @@
 import chromadb
 from chromadb.config import Settings
 import uuid
+import os
+from app.core.config import settings
 
 class VectorStore:
-    def __init__(self, host="localhost", port=8000):
-        self.client = chromadb.HttpClient(
-            host=host, 
-            port=port,
-            settings=Settings(allow_reset=True, anonymized_telemetry=False)
-        )
+    def __init__(self, host=None, port=None, persist_dir=None):
+        self.host = host or settings.CHROMA_HOST
+        self.port = port or settings.CHROMA_PORT
+        self.persist_dir = persist_dir or settings.CHROMA_PERSIST_DIR
+        
+        if self.host:
+            self.client = chromadb.HttpClient(
+                host=self.host, 
+                port=self.port,
+                settings=Settings(allow_reset=True, anonymized_telemetry=False)
+            )
+        else:
+            # Fallback to local SQLite in-process storage
+            os.makedirs(self.persist_dir, exist_ok=True)
+            self.client = chromadb.PersistentClient(
+                path=self.persist_dir,
+                settings=Settings(allow_reset=True, anonymized_telemetry=False)
+            )
         self.collection = self.client.get_or_create_collection(name="documents")
 
     def add_chunks(self, document_id: str, chunks: list[dict]):
