@@ -114,7 +114,7 @@ class DocumentChunk(Base, TimestampMixin):
     vector_dimension = Column(Integer, nullable=True)
     vector_reference = Column(String(255), nullable=True, index=True)
     checksum = Column(String(64), nullable=True)
-    embedding = Column(Vector(1536), nullable=True)
+    embedding = Column(Vector(768), nullable=True)
 
     document = relationship("Document", back_populates="document_chunks")
 
