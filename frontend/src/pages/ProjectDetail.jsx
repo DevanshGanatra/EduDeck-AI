@@ -22,6 +22,12 @@ const ProjectDetail = () => {
   const [generating, setGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationProgressText, setGenerationProgressText] = useState("");
+  
+  // Slide Editor State
+  const [currentJobId, setCurrentJobId] = useState(null);
+  const [slides, setSlides] = useState([]);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const [exporting, setExporting] = useState(false);
   const [presentationUrl, setPresentationUrl] = useState(null);
 
   useEffect(() => {
@@ -74,6 +80,16 @@ const ProjectDetail = () => {
     }
   }, [id]);
 
+  const fetchSlides = async (jobId) => {
+    try {
+      const res = await apiClient.get(`/generation/${jobId}/slides`);
+      setSlides(res.data.data.slides);
+      setActiveSlideIndex(0);
+    } catch (err) {
+      console.error("Failed to fetch slides:", err);
+    }
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
@@ -87,6 +103,8 @@ const ProjectDetail = () => {
     setGenerating(true);
     setGenerationProgress(5);
     setGenerationProgressText("Initializing Request...");
+    setSlides([]);
+    setPresentationUrl(null);
     try {
       const res = await apiClient.post('/generation/generate', {
         project_id: id,
@@ -94,6 +112,7 @@ const ProjectDetail = () => {
       });
       
       const jobId = res.data.data.job_id;
+      setCurrentJobId(jobId);
       
       // Poll for status
       while (true) {
@@ -109,7 +128,8 @@ const ProjectDetail = () => {
           setGenerationProgress(100);
           setGenerationProgressText("Completed!");
           await new Promise(resolve => setTimeout(resolve, 500)); // Let the bar fill
-          setPresentationUrl(statusData.download_url);
+          
+          await fetchSlides(jobId);
           setActiveTab('slides');
           break;
         } else if (statusData.status === "failed") {
@@ -124,6 +144,40 @@ const ProjectDetail = () => {
     } finally {
       setGenerating(false);
       setGenerationProgress(0);
+    }
+  };
+
+  const handleSlideUpdate = (field, value) => {
+    setSlides(prev => {
+      const newSlides = [...prev];
+      if (field === 'bullets') {
+        newSlides[activeSlideIndex].content.content = value.split('\n').filter(s => s.trim());
+      } else {
+        newSlides[activeSlideIndex].content[field] = value;
+      }
+      return newSlides;
+    });
+    
+    // Auto-save to DB
+    const updatedSlide = slides[activeSlideIndex];
+    apiClient.put(`/generation/${currentJobId}/slides/${updatedSlide.slide_number}`, {
+      content: {
+        ...updatedSlide.content,
+        [field === 'bullets' ? 'content' : field]: field === 'bullets' ? value.split('\n').filter(s => s.trim()) : value
+      }
+    }).catch(err => console.error("Auto-save failed", err));
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await apiClient.post(`/generation/${currentJobId}/export`);
+      setPresentationUrl(res.data.data.download_url);
+    } catch (err) {
+      console.error("Export failed", err);
+      alert("Failed to export PPTX: " + (err.response?.data?.message || err.message));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -333,47 +387,134 @@ const ProjectDetail = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.4 }}
-              className="h-full flex items-center justify-center"
+              className="h-full flex gap-6"
             >
-              <Card className="max-w-2xl w-full text-center p-12 border-white/10 bg-black/40">
-                {presentationUrl ? (
-                  <div className="flex flex-col items-center space-y-6">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-green-500/20 rounded-full blur-xl animate-pulse"></div>
-                      <div className="w-24 h-24 bg-green-500/10 rounded-full flex items-center justify-center border border-green-500/30 relative z-10">
-                        <CheckCircle size={48} className="text-green-400" />
+              {presentationUrl ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <Card className="max-w-2xl w-full text-center p-12 border-white/10 bg-black/40">
+                    <div className="flex flex-col items-center space-y-6">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-green-500/20 rounded-full blur-xl animate-pulse"></div>
+                        <div className="w-24 h-24 bg-green-500/10 rounded-full flex items-center justify-center border border-green-500/30 relative z-10">
+                          <CheckCircle size={48} className="text-green-400" />
+                        </div>
                       </div>
+                      <div>
+                        <h2 className="text-3xl font-bold mb-3">Synthesis Complete</h2>
+                        <p className="text-muted-foreground text-lg max-w-md mx-auto">Your presentation has been materialized and is ready for download.</p>
+                      </div>
+                      <Button 
+                        size="lg"
+                        className="h-14 px-10 text-lg w-full max-w-sm mt-4 bg-white text-black hover:bg-gray-200 shadow-[0_0_30px_rgba(255,255,255,0.3)]"
+                        onClick={() => window.open(presentationUrl, '_blank')}
+                      >
+                        <FileText className="mr-3" size={24} /> Download Presentation
+                      </Button>
+                      <Button variant="ghost" onClick={() => setActiveTab('generate')} className="mt-2 text-muted-foreground">
+                        Generate Another
+                      </Button>
                     </div>
-                    <div>
-                      <h2 className="text-3xl font-bold mb-3">Synthesis Complete</h2>
-                      <p className="text-muted-foreground text-lg max-w-md mx-auto">Your presentation has been materialized and is ready for download.</p>
+                  </Card>
+                </div>
+              ) : slides.length > 0 ? (
+                <>
+                  {/* Slide Editor Sidebar */}
+                  <Card className="w-64 flex flex-col h-full bg-black/60 backdrop-blur-xl border-white/10 overflow-hidden">
+                    <CardHeader className="p-4 border-b border-white/10 bg-black/20">
+                      <CardTitle className="text-sm font-medium">Slides ({slides.length})</CardTitle>
+                    </CardHeader>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                      {slides.map((slide, idx) => (
+                        <div 
+                          key={slide.id}
+                          onClick={() => setActiveSlideIndex(idx)}
+                          className={`p-3 rounded-lg cursor-pointer transition-all border ${
+                            activeSlideIndex === idx 
+                              ? 'bg-primary/20 border-primary/50 text-white' 
+                              : 'bg-white/5 border-transparent hover:bg-white/10 text-muted-foreground'
+                          }`}
+                        >
+                          <div className="text-xs font-mono mb-1 opacity-50">Slide {slide.slide_number}</div>
+                          <div className="text-sm font-medium truncate">{slide.content.title}</div>
+                        </div>
+                      ))}
                     </div>
-                    <Button 
-                      size="lg"
-                      className="h-14 px-10 text-lg w-full max-w-sm mt-4 bg-white text-black hover:bg-gray-200 shadow-[0_0_30px_rgba(255,255,255,0.3)]"
-                      onClick={() => window.open(presentationUrl, '_blank')}
-                    >
-                      <FileText className="mr-3" size={24} /> Download Presentation
-                    </Button>
-                    <Button variant="ghost" onClick={() => setActiveTab('generate')} className="mt-2 text-muted-foreground">
-                      Generate Another
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center space-y-6">
-                    <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center border border-white/10">
-                      <FileText size={48} className="text-muted-foreground" />
+                  </Card>
+
+                  {/* Main Slide Editor Pane */}
+                  <Card className="flex-1 flex flex-col h-full bg-black/40 border-white/10 overflow-hidden">
+                    <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 bg-black/20 p-4">
+                      <CardTitle className="text-lg">Edit Slide</CardTitle>
+                      <Button 
+                        size="sm" 
+                        onClick={handleExport}
+                        disabled={exporting}
+                        className="shadow-[0_0_15px_rgba(139,92,246,0.5)]"
+                      >
+                        {exporting ? (
+                          <><div className="w-4 h-4 mr-2 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Exporting...</>
+                        ) : (
+                          <><FileText className="mr-2" size={16} /> Export to PPTX</>
+                        )}
+                      </Button>
+                    </CardHeader>
+                    
+                    <CardContent className="flex-1 overflow-y-auto p-8">
+                      {slides[activeSlideIndex] && (
+                        <div className="max-w-3xl mx-auto space-y-8 bg-white/5 p-10 rounded-xl border border-white/10 shadow-2xl relative">
+                          <div className="absolute top-4 right-4 text-xs font-mono text-white/20">Slide {slides[activeSlideIndex].slide_number}</div>
+                          
+                          <div className="space-y-2">
+                            <label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Slide Title</label>
+                            <input 
+                              type="text" 
+                              value={slides[activeSlideIndex].content.title || ""}
+                              onChange={(e) => handleSlideUpdate("title", e.target.value)}
+                              className="w-full bg-transparent border-b border-white/10 focus:border-primary outline-none py-2 text-3xl font-heading font-bold text-white transition-colors"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Content (Bullets)</label>
+                            <Textarea 
+                              value={(slides[activeSlideIndex].content.content || []).join('\n')}
+                              onChange={(e) => handleSlideUpdate("bullets", e.target.value)}
+                              className="min-h-[200px] text-lg leading-relaxed bg-black/20 border-white/10"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Put each bullet point on a new line.</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Speaker Notes</label>
+                            <Textarea 
+                              value={slides[activeSlideIndex].content.speaker_notes || ""}
+                              onChange={(e) => handleSlideUpdate("speaker_notes", e.target.value)}
+                              className="min-h-[100px] bg-black/20 border-white/10 text-muted-foreground"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <Card className="max-w-2xl w-full text-center p-12 border-white/10 bg-black/40">
+                    <div className="flex flex-col items-center space-y-6">
+                      <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center border border-white/10">
+                        <FileText size={48} className="text-muted-foreground" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold mb-2">Awaiting Instructions</h2>
+                        <p className="text-muted-foreground max-w-md mx-auto">No presentation exists for this project yet. Provide a prompt to begin synthesis.</p>
+                      </div>
+                      <Button onClick={() => setActiveTab('generate')} variant="outline" className="mt-4">
+                        <Zap className="mr-2" size={16} /> Enter Generator
+                      </Button>
                     </div>
-                    <div>
-                      <h2 className="text-2xl font-bold mb-2">Awaiting Instructions</h2>
-                      <p className="text-muted-foreground max-w-md mx-auto">No presentation exists for this project yet. Provide a prompt to begin synthesis.</p>
-                    </div>
-                    <Button onClick={() => setActiveTab('generate')} variant="outline" className="mt-4">
-                      <Zap className="mr-2" size={16} /> Enter Generator
-                    </Button>
-                  </div>
-                )}
-              </Card>
+                  </Card>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

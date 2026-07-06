@@ -98,3 +98,84 @@ async def get_generation_status(
         ),
         message="Job status retrieved"
     )
+
+@router.get("/{job_id}/slides")
+async def get_presentation_slides(
+    job_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from sqlalchemy.future import select
+    from app.models.core import Slide
+    import json
+    
+    pres_res = await db.execute(select(Presentation).where(Presentation.job_id == job_id))
+    pres = pres_res.scalars().first()
+    if not pres:
+        from app.core.exceptions import NotFoundException
+        raise NotFoundException(message="Presentation not found")
+        
+    slides_res = await db.execute(select(Slide).where(Slide.presentation_id == pres.id).order_by(Slide.slide_number))
+    db_slides = slides_res.scalars().all()
+    
+    slides_data = []
+    for s in db_slides:
+        slides_data.append({
+            "id": s.id,
+            "slide_number": s.slide_number,
+            "content": json.loads(s.content_json)
+        })
+        
+    return success_response(data={"title": pres.title, "slides": slides_data}, message="Slides retrieved")
+
+class UpdateSlideRequest(BaseModel):
+    content: dict
+
+@router.put("/{job_id}/slides/{slide_number}")
+async def update_presentation_slide(
+    job_id: UUID,
+    slide_number: int,
+    req: UpdateSlideRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from sqlalchemy.future import select
+    from app.models.core import Slide
+    import json
+    
+    pres_res = await db.execute(select(Presentation).where(Presentation.job_id == job_id))
+    pres = pres_res.scalars().first()
+    if not pres:
+        from app.core.exceptions import NotFoundException
+        raise NotFoundException(message="Presentation not found")
+        
+    slide_res = await db.execute(select(Slide).where(Slide.presentation_id == pres.id, Slide.slide_number == slide_number))
+    db_slide = slide_res.scalars().first()
+    
+    if not db_slide:
+        from app.core.exceptions import NotFoundException
+        raise NotFoundException(message="Slide not found")
+        
+    db_slide.content_json = json.dumps(req.content)
+    await db.commit()
+    
+    return success_response(data=None, message="Slide updated successfully")
+
+@router.post("/{job_id}/export")
+async def export_presentation(
+    job_id: UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.services.generation import GenerationService
+    service = GenerationService(db)
+    
+    # We could do this in the background, but for now we'll do it synchronously
+    # since python-pptx is relatively fast compared to LLM generation.
+    try:
+        download_url = await service.export_presentation_job(job_id)
+        return success_response(data={"download_url": download_url}, message="Presentation exported successfully")
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))

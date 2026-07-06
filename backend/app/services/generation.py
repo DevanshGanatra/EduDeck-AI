@@ -133,7 +133,7 @@ User Request: {prompt}
         await self.db.commit()
         await self.db.refresh(presentation)
         
-        # Save Slides (optional for MVP, but good for persistence)
+        # Save Slides to DB for In-App Editing
         from app.models.core import Slide
         for i, slide_data in enumerate(presentation_data.get("slides", [])):
             db_slide = Slide(
@@ -143,8 +143,34 @@ User Request: {prompt}
             )
             self.db.add(db_slide)
         await self.db.commit()
+        
+        await self.update_progress(job_id, 100, "Drafting complete. Ready for review.")
 
-        await self.update_progress(job_id, 90, "Uploading presentation to cloud storage...")
+        return str(job.id)
+
+    async def export_presentation_job(self, job_id: UUID) -> str:
+        """
+        Exports an existing presentation job to a PPTX file and uploads to cloud storage.
+        """
+        job_res = await self.db.execute(select(GenerationJob).where(GenerationJob.id == job_id))
+        job = job_res.scalars().first()
+        if not job or job.status != JobStatus.COMPLETED:
+            raise ValueError("Job not found or not ready for export.")
+
+        pres_res = await self.db.execute(select(Presentation).where(Presentation.job_id == job_id))
+        presentation = pres_res.scalars().first()
+        if not presentation:
+            raise ValueError("Presentation not found.")
+
+        # Reconstruct presentation_data dict for export_service
+        from app.models.core import Slide
+        slides_res = await self.db.execute(select(Slide).where(Slide.presentation_id == presentation.id).order_by(Slide.slide_number))
+        db_slides = slides_res.scalars().all()
+        
+        presentation_data = {
+            "title": presentation.title,
+            "slides": [json.loads(s.content_json) for s in db_slides]
+        }
 
         # 6. Export to PPTX
         download_url = await self.export_service.export_presentation(presentation, presentation_data)
