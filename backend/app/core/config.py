@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     
     # AI Providers (Extracted for architecture compliance)
     OPENAI_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
     PRIMARY_LLM_MODEL: str = "gpt-4o"
     PRIMARY_EMBEDDING_MODEL: str = "text-embedding-3-small"
     

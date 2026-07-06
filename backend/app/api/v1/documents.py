@@ -7,7 +7,7 @@ from app.api.deps import get_current_user, get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.repositories.document import DocumentRepository
 from app.services.storage import LocalStorageService
-from app.services.document_parser import DocumentParser
+from app.services.document_parser import DocumentParser, PyPDFExtractionStrategy
 from app.services.text_chunker import TextChunker, RecursiveCharacterChunker
 from app.services.chunk_persistence import ChunkPersistenceService
 from app.services.task_dispatcher import FastAPITaskDispatcher
@@ -23,7 +23,7 @@ def get_document_service(
     return DocumentService(
         document_repo=DocumentRepository(db),
         storage_service=LocalStorageService(),
-        document_parser=DocumentParser(),
+        document_parser=DocumentParser(strategy=PyPDFExtractionStrategy()),
         text_chunker=TextChunker(strategy=RecursiveCharacterChunker()),
         chunk_persistence=None, # Injected manually inside the background task for async safety
         task_dispatcher=FastAPITaskDispatcher(background_tasks)
@@ -60,7 +60,7 @@ from sqlalchemy.future import select
 from app.models.core import Document
 from typing import List
 
-@router.get("/project/{project_id}", response_model=StandardResponse[list])
+@router.get("/project/{project_id}", response_model=StandardResponse[List[DocumentResponse]])
 async def list_documents(
     project_id: UUID,
     current_user: User = Depends(get_current_user),

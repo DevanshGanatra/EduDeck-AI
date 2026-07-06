@@ -1,65 +1,130 @@
-from uuid import UUID
-from typing import List, Dict, Any
+import os
+import json
+import uuid
+import google.generativeai as genai
 from sqlalchemy.ext.asyncio import AsyncSession
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from app.core.config import settings
-from app.schemas.generation import PresentationOutline, SlideContent
-from app.services.retrieval import RetrievalService
-from app.services.storage import LocalStorageService
+from sqlalchemy.future import select
+from app.models.core import Project, Presentation, Document
+from app.models.ai import GenerationJob, JobStatus
+from app.services.vector_store import VectorStore
 from app.services.export import ExportService
 
 class GenerationService:
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.llm = ChatOpenAI(api_key=settings.OPENAI_API_KEY, model="gpt-4o", temperature=0.2)
-        self.retrieval_service = RetrievalService(db)
-        self.export_service = ExportService(LocalStorageService())
+        # Initialize Gemini API
+        from app.core.config import settings
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.vector_store = VectorStore()
+        self.export_service = ExportService(db)
 
     async def generate_presentation(self, prompt: str, project_id: UUID) -> str:
-        # Step 1: Planner
-        outline = await self._plan_outline(prompt)
+        """
+        Main pipeline to generate presentation from a prompt and knowledge base.
+        Returns the download URL for the PPTX.
+        """
+        # 1. Fetch project documents to get their IDs
+        result = await self.db.execute(select(Document).where(Document.project_id == project_id))
+        documents = result.scalars().all()
         
-        # Step 2: Generate Slides individually
-        generated_slides = []
-        for slide_plan in outline.slides:
-            slide_content = await self._generate_slide(slide_plan.title, slide_plan.topic, project_id)
-            generated_slides.append(slide_content)
+        context_chunks = []
+        if documents:
+            # 2. Retrieve relevant context from Vector DB
+            # For MVP, we'll just query the first document's context if multiple exist, 
+            # or search across all by omitting document_id if we want global search.
+            # Let's search across the collection for the prompt.
+            raw_results = self.vector_store.search_similar(query=prompt, n_results=10)
             
-        # Step 3: Export to PPTX
-        file_path = await self.export_service.create_pptx(generated_slides)
-        return file_path
+            # Filter results to only include chunks from documents in this project
+            doc_ids = [str(d.id) for d in documents]
+            for res in raw_results:
+                if res["metadata"].get("document_id") in doc_ids:
+                    context_chunks.append(res["text"])
 
-    async def _plan_outline(self, prompt: str) -> PresentationOutline:
-        planner_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are an expert presentation planner. Create a logical slide outline based on the user's request. Keep it between 5 to 10 slides."),
-            ("user", "{prompt}")
-        ])
+        # 3. Build Prompt for LLM
+        context_text = "\n\n".join(context_chunks)
         
-        chain = planner_prompt | self.llm.with_structured_output(PresentationOutline)
-        result = await chain.ainvoke({"prompt": prompt})
-        return result
+        system_prompt = f"""
+You are an expert Presentation Creator AI. 
+Your goal is to create a professional presentation based on the user's prompt and the provided Context.
+You MUST output ONLY a valid JSON object with the following structure:
+{{
+  "title": "Presentation Title",
+  "slides": [
+    {{
+      "title": "Slide Title",
+      "content": ["Bullet point 1", "Bullet point 2"],
+      "speaker_notes": "Notes for the speaker"
+    }}
+  ]
+}}
+Do NOT wrap the JSON in Markdown code blocks (like ```json). Return raw JSON only.
 
-    async def _generate_slide(self, title: str, topic: str, project_id: UUID) -> SlideContent:
-        # Retrieve context
-        retrieved = await self.retrieval_service.retrieve(query=topic, project_id=project_id, top_k=3)
+Context from Knowledge Base:
+{context_text}
+
+User Request: {prompt}
+"""
         
-        if not retrieved:
-            # Fallback if insufficient source material
-            return SlideContent(
-                title=title,
-                bullet_points=["[Insufficient source material found for this topic.]"],
-                speaker_notes="Please review the knowledge base to ensure sufficient material is uploaded.",
-                references=[]
+        # 4. Call LLM
+        response = self.model.generate_content(system_prompt)
+        response_text = response.text.strip()
+        
+        # Strip potential markdown blocks if the model ignores the instruction
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+            
+        try:
+            presentation_data = json.loads(response_text.strip())
+        except json.JSONDecodeError as e:
+            print("Failed to decode JSON from LLM:", response_text)
+            raise ValueError("Failed to generate valid presentation format from AI.")
+
+        # 5. Create Job & Presentation DB Records
+        job = GenerationJob(project_id=project_id, status=JobStatus.COMPLETED)
+        self.db.add(job)
+        await self.db.commit()
+        await self.db.refresh(job)
+        
+        # We need a template_id (use a dummy one for MVP or fetch first)
+        from app.models.core import PresentationTemplate
+        template_res = await self.db.execute(select(PresentationTemplate).limit(1))
+        template = template_res.scalars().first()
+        
+        if not template:
+            template = PresentationTemplate(name="Default", description="Default minimalist template")
+            self.db.add(template)
+            await self.db.commit()
+            await self.db.refresh(template)
+
+        presentation = Presentation(
+            job_id=job.id,
+            template_id=template.id,
+            title=presentation_data.get("title", "Untitled Presentation")
+        )
+        self.db.add(presentation)
+        await self.db.commit()
+        await self.db.refresh(presentation)
+        
+        # Save Slides (optional for MVP, but good for persistence)
+        from app.models.core import Slide
+        for i, slide_data in enumerate(presentation_data.get("slides", [])):
+            db_slide = Slide(
+                presentation_id=presentation.id,
+                slide_number=i+1,
+                content_json=json.dumps(slide_data)
             )
-            
-        context_text = "\n\n".join([f"Source {i+1} (Page {r['page_number']}): {r['text']}" for i, r in enumerate(retrieved)])
+            self.db.add(db_slide)
+        await self.db.commit()
+
+        # 6. Export to PPTX
+        download_url = await self.export_service.export_presentation(presentation, presentation_data)
         
-        generator_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a slide generation assistant. You must generate structured slide content STRICTLY using the provided Source Context. Do not use outside knowledge. If the context does not fully answer the topic, generate what you can and add a note."),
-            ("user", "Topic: {topic}\n\nContext:\n{context}")
-        ])
+        # Update URL
+        presentation.file_url = download_url
+        await self.db.commit()
         
-        chain = generator_prompt | self.llm.with_structured_output(SlideContent)
-        result = await chain.ainvoke({"topic": topic, "context": context_text})
-        return result
+        return download_url

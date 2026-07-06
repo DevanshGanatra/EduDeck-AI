@@ -31,7 +31,7 @@ class GenerationJob(Base, TimestampMixin):
 
 class GenerationSession(Base, TimestampMixin):
     __tablename__ = "generation_sessions"
-    job_id = Column(ForeignKey("generation_jobs.id", ondelete="CASCADE"), primary_key=True)
+    job_id = Column(ForeignKey("generation_jobs.id", ondelete="CASCADE"), unique=True, nullable=False)
     prompt_template_id = Column(ForeignKey("prompt_templates.id", ondelete="RESTRICT"), nullable=True)
     
     # AI Config Snapshot
@@ -53,7 +53,7 @@ class GenerationSession(Base, TimestampMixin):
 
 class GenerationStep(Base, TimestampMixin):
     __tablename__ = "generation_steps"
-    session_id = Column(ForeignKey("generation_sessions.job_id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(ForeignKey("generation_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
     step_name = Column(String(100), nullable=False) # e.g., Planner, Retriever
     status = Column(String(50), nullable=False)
     latency_ms = Column(Integer, default=0)
