@@ -36,8 +36,14 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
     
     # AI Providers (Extracted for architecture compliance)
-    OPENAI_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
+    
+    # AWS / Cloud Storage Configuration
+    AWS_ACCESS_KEY_ID: str | None = None
+    AWS_SECRET_ACCESS_KEY: str | None = None
+    AWS_REGION_NAME: str | None = None
+    AWS_S3_BUCKET_NAME: str | None = None
     PRIMARY_LLM_MODEL: str = "gpt-4o"
     PRIMARY_EMBEDDING_MODEL: str = "text-embedding-3-small"
     

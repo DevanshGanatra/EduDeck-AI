@@ -6,12 +6,15 @@ from app.models.core import User
 from app.api.deps import get_current_user, get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.repositories.document import DocumentRepository
-from app.services.storage import LocalStorageService
+from app.services.storage import LocalStorageService, S3StorageService
 from app.services.document_parser import DocumentParser, PyPDFExtractionStrategy
 from app.services.text_chunker import TextChunker, RecursiveCharacterChunker
 from app.services.chunk_persistence import ChunkPersistenceService
 from app.services.task_dispatcher import FastAPITaskDispatcher
 from app.services.document import DocumentService
+from app.core.config import settings
+from app.db.repositories.document_chunk import DocumentChunkRepository
+from app.services.task_dispatcher import FastAPITaskDispatcher
 
 router = APIRouter()
 
@@ -19,10 +22,16 @@ def get_document_service(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ) -> DocumentService:
-    # Manual DI for this complex setup
+    document_repo = DocumentRepository(db)
+    
+    if settings.AWS_S3_BUCKET_NAME and settings.AWS_ACCESS_KEY_ID:
+        storage_service = S3StorageService()
+    else:
+        storage_service = LocalStorageService()
+        
     return DocumentService(
-        document_repo=DocumentRepository(db),
-        storage_service=LocalStorageService(),
+        document_repo=document_repo,
+        storage_service=storage_service,
         document_parser=DocumentParser(strategy=PyPDFExtractionStrategy()),
         text_chunker=TextChunker(strategy=RecursiveCharacterChunker()),
         chunk_persistence=None, # Injected manually inside the background task for async safety
