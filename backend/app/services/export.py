@@ -47,10 +47,16 @@ class ExportService:
 
         filename = f"presentation_{uuid.uuid4()}.pptx"
         
-        # Save locally in a public static directory for download
-        # Assuming we run this from backend root
-        os.makedirs("public/downloads", exist_ok=True)
-        file_path = os.path.join("public/downloads", filename)
-        prs.save(file_path)
+        # Save to in-memory buffer
+        import io
+        buffer = io.BytesIO()
+        prs.save(buffer)
+        buffer.seek(0)
         
-        return f"http://localhost:8080/downloads/{filename}"
+        # Upload via StorageService
+        from app.services.storage import get_storage_service
+        storage_service = get_storage_service()
+        file_reference, _ = await storage_service.save_upload(buffer, filename=filename)
+        
+        # Return URL
+        return storage_service.get_file_path(file_reference)

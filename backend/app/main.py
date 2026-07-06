@@ -37,9 +37,9 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(GlobalExceptionMiddleware)
 
-    # Mount static files for PPTX downloads
-    os.makedirs("public/downloads", exist_ok=True)
-    app.mount("/downloads", StaticFiles(directory="public/downloads"), name="downloads")
+    # Mount static files for PPTX/PDF downloads (local fallback)
+    os.makedirs("data/uploads", exist_ok=True)
+    app.mount("/downloads", StaticFiles(directory="data/uploads"), name="downloads")
 
     # Include API Routers
     app.include_router(api_router, prefix=settings.API_V1_STR)

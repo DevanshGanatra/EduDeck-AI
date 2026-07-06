@@ -8,7 +8,7 @@ from app.core.config import settings
 
 class StorageService(ABC):
     @abstractmethod
-    async def save_upload(self, file_stream: BinaryIO) -> Tuple[str, str]:
+    async def save_upload(self, file_stream: BinaryIO, filename: str = None) -> Tuple[str, str]:
         """Saves a file and returns (file_reference, sha256_checksum)"""
         pass
         
@@ -22,8 +22,8 @@ class LocalStorageService(StorageService):
         self.upload_dir = upload_dir
         os.makedirs(self.upload_dir, exist_ok=True)
 
-    async def save_upload(self, file_stream: BinaryIO) -> Tuple[str, str]:
-        secure_filename = f"{uuid.uuid4()}.pdf"
+    async def save_upload(self, file_stream: BinaryIO, filename: str = None) -> Tuple[str, str]:
+        secure_filename = filename if filename else f"{uuid.uuid4()}.pdf"
         file_path = os.path.join(self.upload_dir, secure_filename)
         
         sha256_hash = hashlib.sha256()
@@ -35,7 +35,8 @@ class LocalStorageService(StorageService):
         return file_path, sha256_hash.hexdigest()
         
     def get_file_path(self, file_reference: str) -> str:
-        return file_reference
+        filename = os.path.basename(file_reference)
+        return f"http://localhost:8080/downloads/{filename}"
 
 class S3StorageService(StorageService):
     def __init__(self):
@@ -47,8 +48,8 @@ class S3StorageService(StorageService):
             region_name=self.region
         )
 
-    async def save_upload(self, file_stream: BinaryIO) -> Tuple[str, str]:
-        secure_filename = f"{uuid.uuid4()}.pdf"
+    async def save_upload(self, file_stream: BinaryIO, filename: str = None) -> Tuple[str, str]:
+        secure_filename = filename if filename else f"{uuid.uuid4()}.pdf"
         
         # We need to compute checksum while keeping the file stream intact for upload
         sha256_hash = hashlib.sha256()
