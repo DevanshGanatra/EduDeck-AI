@@ -82,10 +82,28 @@ const ProjectDetail = () => {
         project_id: id,
         prompt: prompt
       });
-      setPresentationUrl(res.data.data.download_url);
-      setActiveTab('slides');
+      
+      const jobId = res.data.data.job_id;
+      
+      // Poll for status
+      while (true) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const statusRes = await apiClient.get(`/generation/generate/status/${jobId}`);
+        const statusData = statusRes.data.data;
+        
+        if (statusData.status === "completed") {
+          setPresentationUrl(statusData.download_url);
+          setActiveTab('slides');
+          break;
+        } else if (statusData.status === "failed") {
+          console.error("Generation failed:", statusData.error_message);
+          alert("Generation failed: " + statusData.error_message);
+          break;
+        }
+      }
     } catch (err) {
       console.error("Generation failed", err);
+      alert("Generation failed: " + (err.response?.data?.message || err.message));
     } finally {
       setGenerating(false);
     }

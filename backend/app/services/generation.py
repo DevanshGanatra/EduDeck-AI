@@ -19,7 +19,7 @@ class GenerationService:
         self.retrieval_service = RetrievalService(db)
         self.export_service = ExportService(db)
 
-    async def generate_presentation(self, prompt: str, project_id: UUID) -> str:
+    async def generate_presentation(self, prompt: str, project_id: UUID, job_id: UUID = None) -> str:
         """
         Main pipeline to generate presentation from a prompt and knowledge base.
         Returns the download URL for the PPTX.
@@ -76,11 +76,24 @@ User Request: {prompt}
             print("Failed to decode JSON from LLM:", response_text)
             raise ValueError("Failed to generate valid presentation format from AI.")
 
-        # 5. Create Job & Presentation DB Records
-        job = GenerationJob(project_id=project_id, status=JobStatus.COMPLETED)
-        self.db.add(job)
-        await self.db.commit()
-        await self.db.refresh(job)
+        # 5. Get or Create Job Record
+        if job_id:
+            job_res = await self.db.execute(select(GenerationJob).where(GenerationJob.id == job_id))
+            job = job_res.scalars().first()
+            if job:
+                job.status = JobStatus.COMPLETED
+                await self.db.commit()
+                await self.db.refresh(job)
+            else:
+                job = GenerationJob(id=job_id, project_id=project_id, status=JobStatus.COMPLETED)
+                self.db.add(job)
+                await self.db.commit()
+                await self.db.refresh(job)
+        else:
+            job = GenerationJob(project_id=project_id, status=JobStatus.COMPLETED)
+            self.db.add(job)
+            await self.db.commit()
+            await self.db.refresh(job)
         
         # We need a template_id (use a dummy one for MVP or fetch first)
         from app.models.core import PresentationTemplate
@@ -121,3 +134,11 @@ User Request: {prompt}
         await self.db.commit()
         
         return download_url
+
+    async def mark_job_failed(self, job_id: UUID, error_message: str) -> None:
+        job_res = await self.db.execute(select(GenerationJob).where(GenerationJob.id == job_id))
+        job = job_res.scalars().first()
+        if job:
+            job.status = JobStatus.FAILED
+            job.error_message = error_message
+            await self.db.commit()

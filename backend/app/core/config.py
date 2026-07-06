@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/edudeck"
+    REDIS_URL: str = "redis://localhost:6379/0"
     
     @property
     def async_database_url(self) -> str:
