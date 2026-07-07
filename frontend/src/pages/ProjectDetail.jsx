@@ -10,6 +10,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Textarea } from '../components/ui/textarea';
 import { Progress } from '../components/ui/progress';
+import SlidePreview from '../components/ui/SlidePreview';
 
 // ── Stage config ──────────────────────────────────────────────────────────────
 const STAGES = {
@@ -651,39 +652,58 @@ const ProjectDetail = () => {
                       </Button>
                     </CardHeader>
                     
-                    <CardContent className="flex-1 overflow-y-auto p-8">
+                    <CardContent className="flex-1 overflow-hidden p-0">
                       {slides[activeSlideIndex] && (
-                        <div className="max-w-3xl mx-auto space-y-8 bg-white/5 p-10 rounded-xl border border-white/10 shadow-2xl relative">
-                          <div className="absolute top-4 right-4 text-xs font-mono text-white/20">Slide {slides[activeSlideIndex].slide_number}</div>
+                        <div className="flex flex-col lg:flex-row h-full">
                           
-                          <div className="space-y-2">
-                            <label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Slide Title</label>
-                            <input 
-                              type="text" 
-                              value={slides[activeSlideIndex].content.title || ""}
-                              onChange={(e) => handleSlideUpdate("title", e.target.value)}
-                              className="w-full bg-transparent border-b border-white/10 focus:border-primary outline-none py-2 text-3xl font-heading font-bold text-white transition-colors"
-                            />
+                          {/* Text Editor (Left side) */}
+                          <div className="w-full lg:w-1/2 p-6 lg:p-8 overflow-y-auto border-b lg:border-b-0 lg:border-r border-white/10 bg-black/20">
+                            <div className="space-y-8">
+                              <div className="space-y-2">
+                                <label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Slide Title</label>
+                                <input 
+                                  type="text" 
+                                  value={slides[activeSlideIndex].content.title || ""}
+                                  onChange={(e) => handleSlideUpdate("title", e.target.value)}
+                                  className="w-full bg-transparent border-b border-white/10 focus:border-primary outline-none py-2 text-2xl font-heading font-bold text-white transition-colors"
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Content (Bullets)</label>
+                                <Textarea 
+                                  value={(slides[activeSlideIndex].content.content || []).join('\n')}
+                                  onChange={(e) => handleSlideUpdate("bullets", e.target.value)}
+                                  className="min-h-[160px] text-base leading-relaxed bg-black/40 border-white/10 focus-visible:ring-primary/50"
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">Put each bullet point on a new line.</p>
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Speaker Notes</label>
+                                <Textarea 
+                                  value={slides[activeSlideIndex].content.speaker_notes || ""}
+                                  onChange={(e) => handleSlideUpdate("speaker_notes", e.target.value)}
+                                  className="min-h-[80px] bg-black/40 border-white/10 text-muted-foreground text-sm focus-visible:ring-primary/50"
+                                />
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="space-y-2">
-                            <label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Content (Bullets)</label>
-                            <Textarea 
-                              value={(slides[activeSlideIndex].content.content || []).join('\n')}
-                              onChange={(e) => handleSlideUpdate("bullets", e.target.value)}
-                              className="min-h-[200px] text-lg leading-relaxed bg-black/20 border-white/10"
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">Put each bullet point on a new line.</p>
+                          {/* Visual Preview (Right side) */}
+                          <div className="w-full lg:w-1/2 p-6 lg:p-8 overflow-y-auto flex items-center justify-center bg-black/60 relative">
+                            {/* Subtle grid pattern background for the preview pane */}
+                            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                            
+                            <div className="w-full max-w-2xl relative z-10 transition-transform duration-300 hover:scale-[1.02]">
+                              <SlidePreview 
+                                title={slides[activeSlideIndex].content.title}
+                                bullets={slides[activeSlideIndex].content.content || []}
+                                slideNumber={`SLIDE ${slides[activeSlideIndex].slide_number}`}
+                              />
+                            </div>
                           </div>
                           
-                          <div className="space-y-2">
-                            <label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Speaker Notes</label>
-                            <Textarea 
-                              value={slides[activeSlideIndex].content.speaker_notes || ""}
-                              onChange={(e) => handleSlideUpdate("speaker_notes", e.target.value)}
-                              className="min-h-[100px] bg-black/20 border-white/10 text-muted-foreground"
-                            />
-                          </div>
                         </div>
                       )}
                     </CardContent>
