@@ -53,8 +53,8 @@ const Projects = () => {
       {/* Header Section */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Your Workspaces</h1>
-          <p className="text-gray-500 text-sm mt-1">Manage your AI presentation projects</p>
+          <h1 className="text-2xl font-bold text-foreground">Your Workspaces</h1>
+          <p className="text-muted-foreground text-sm mt-1">Manage your AI presentation projects</p>
         </div>
         
         <button 
@@ -66,14 +66,13 @@ const Projects = () => {
         </button>
       </div>
 
-      {/* Search & Filter Bar */}
       <div className="glass-panel p-3 flex gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
           <input 
             type="text" 
             placeholder="Search projects..." 
-            className="w-full bg-transparent border-none focus:ring-0 pl-10 py-1 text-sm text-gray-700 placeholder-gray-400"
+            className="w-full bg-transparent border-none focus:ring-0 pl-10 py-1 text-sm text-foreground placeholder-muted-foreground outline-none"
           />
         </div>
       </div>
@@ -85,11 +84,11 @@ const Projects = () => {
         </div>
       ) : projects.length === 0 ? (
         <div className="glass-panel p-12 text-center flex flex-col items-center">
-          <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4">
-            <FolderOpen size={32} className="text-gray-400" />
+          <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4 border border-white/10">
+            <FolderOpen size={32} className="text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900">No projects yet</h3>
-          <p className="text-gray-500 text-sm max-w-sm mt-2 mb-6">
+          <h3 className="text-lg font-semibold text-foreground">No projects yet</h3>
+          <p className="text-muted-foreground text-sm max-w-sm mt-2 mb-6">
             Create your first workspace to start uploading documents and generating AI presentations.
           </p>
           <button onClick={() => setIsModalOpen(true)} className="btn-secondary">
@@ -105,26 +104,26 @@ const Projects = () => {
               transition={{ delay: index * 0.05 }}
               key={project.id}
               onClick={() => navigate(`/projects/${project.id}`)}
-              className="glass-panel p-5 hover:border-brand-300 hover:shadow-xl hover:shadow-brand-500/10 transition-all group cursor-pointer flex flex-col h-full"
+              className="glass-panel p-5 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/20 transition-all group cursor-pointer flex flex-col h-full"
             >
               <div className="flex justify-between items-start mb-4">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center text-brand-600 font-bold text-lg">
+                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary font-bold text-lg border border-primary/30">
                   {project.title.charAt(0).toUpperCase()}
                 </div>
-                <button className="text-gray-400 hover:text-gray-600 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button className="text-muted-foreground hover:text-foreground p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <MoreVertical size={18} />
                 </button>
               </div>
-              <h3 className="font-semibold text-gray-900 text-lg mb-1 line-clamp-1">{project.title}</h3>
-              <p className="text-gray-500 text-sm line-clamp-2 mb-4 flex-1">
+              <h3 className="font-semibold text-foreground text-lg mb-1 line-clamp-1">{project.title}</h3>
+              <p className="text-muted-foreground text-sm line-clamp-2 mb-4 flex-1">
                 {project.description || "No description provided."}
               </p>
               
-              <div className="pt-4 border-t border-gray-100/50 flex justify-between items-center mt-auto">
-                <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded-md">
+              <div className="pt-4 border-t border-white/10 flex justify-between items-center mt-auto">
+                <span className="text-xs font-medium text-muted-foreground bg-white/5 border border-white/10 px-2 py-1 rounded-md">
                   {project.document_count || 0} Documents
                 </span>
-                <div className="text-brand-600 text-sm font-medium flex items-center gap-1 group-hover:gap-2 transition-all">
+                <div className="text-primary text-sm font-medium flex items-center gap-1 group-hover:gap-2 transition-all">
                   Open <ArrowRight size={14} />
                 </div>
               </div>
@@ -135,20 +134,20 @@ const Projects = () => {
 
       {/* Create Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            className="glass-panel max-w-md w-full overflow-hidden"
           >
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="font-bold text-gray-900">Create New Project</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center">
+              <h3 className="font-bold text-foreground">Create New Project</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground text-2xl leading-none">&times;</button>
             </div>
             
             <form onSubmit={handleCreateProject} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Project Title</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Project Title</label>
                 <input 
                   type="text" 
                   required
@@ -159,7 +158,7 @@ const Projects = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Description (Optional)</label>
                 <textarea 
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}

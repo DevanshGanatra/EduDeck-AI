@@ -1,6 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { apiCall } from '../utils/api';
-
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -66,10 +64,16 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (email, password, name) => {
     try {
-      const data = await apiCall('/api/v1/auth/register', {
+      const response = await fetch('/api/v1/auth/register', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, name })
       });
+      
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.message || 'Registration failed');
+      }
       
       // Auto login after register
       return await login(email, password);

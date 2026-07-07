@@ -34,10 +34,10 @@ const Sidebar = () => {
     >
       <div>
         <div className="flex items-center gap-3 px-2 mb-8 mt-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-xl shadow-md">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-bold text-xl shadow-[0_0_15px_rgba(139,92,246,0.5)]">
             E
           </div>
-          <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600">
+          <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
             EduDeck AI
           </span>
         </div>
@@ -50,8 +50,8 @@ const Sidebar = () => {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                   isActive
-                    ? 'bg-brand-50 text-brand-700 font-medium shadow-sm border border-brand-100/50'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-primary/20 text-primary font-medium shadow-sm border border-primary/30'
+                    : 'text-muted-foreground hover:bg-white/5 hover:text-foreground'
                 }`
               }
             >
@@ -65,25 +65,25 @@ const Sidebar = () => {
       <div className="flex flex-col gap-4">
         {/* User Profile & Credits */}
         {user && (
-          <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200 shadow-sm">
+          <div className="p-4 bg-black/20 rounded-xl border border-white/10 shadow-sm">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold border border-brand-200">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold border border-primary/30">
                 {user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
               </div>
               <div className="overflow-hidden">
-                <p className="text-sm font-bold text-gray-900 truncate">{user.name || 'User'}</p>
-                <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                <p className="text-sm font-bold text-foreground truncate">{user.name || 'User'}</p>
+                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
               </div>
             </div>
             
-            <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200 mb-3">
-              <span className="text-xs font-medium text-gray-500">Balance</span>
-              <span className="text-sm font-bold text-brand-700 flex items-center gap-1">
+            <div className="flex items-center justify-between bg-black/40 rounded-lg p-2 border border-white/5 mb-3">
+              <span className="text-xs font-medium text-muted-foreground">Balance</span>
+              <span className="text-sm font-bold text-primary flex items-center gap-1">
                 <span>⚡</span> {user.credits}
               </span>
             </div>
             
-            <button className="w-full py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm cursor-not-allowed opacity-80" title="Coming Soon">
+            <button className="w-full py-2 bg-white/10 hover:bg-white/20 text-foreground rounded-lg text-xs font-semibold transition-colors shadow-sm cursor-not-allowed opacity-80" title="Coming Soon">
               Buy Credits
             </button>
           </div>
@@ -91,7 +91,7 @@ const Sidebar = () => {
 
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors w-full text-left"
+          className="flex items-center gap-3 px-4 py-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors w-full text-left"
         >
           <LogOut size={20} className="shrink-0" />
           <span className="font-medium">Logout</span>
