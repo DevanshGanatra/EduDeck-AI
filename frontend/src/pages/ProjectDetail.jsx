@@ -20,6 +20,7 @@ const STAGES = {
   chunking:    { label: 'Chunking pages',   pct: 55, color: 'bg-amber-400' },
   ready:       { label: 'Ready',            pct: 100, color: 'bg-emerald-400' },
   failed:      { label: 'Failed',           pct: 100, color: 'bg-red-400' },
+  cancelled:   { label: 'Cancelled',        pct: 0,   color: 'bg-gray-400' },
 };
 
 // ── DocumentCard ──────────────────────────────────────────────────────────────
@@ -30,14 +31,23 @@ const DocumentCard = ({ doc, onCancel }) => {
   const [confirming, setConfirming] = React.useState(false);
   const [cancelling, setCancelling] = React.useState(false);
 
-  // During vectorization we have granular chunk-level progress
+  // Vectorization progress
   const isVectorizing = !isReady && !isFailed && doc.total_chunks > 0;
   const vectorPct = isVectorizing && doc.total_chunks > 0
     ? Math.round((doc.vectorized_chunks / doc.total_chunks) * 100)
     : 0;
 
-  // Overall % — use vector progress if available, else stage-based
-  const overallPct = isReady ? 100 : (isVectorizing ? 50 + Math.round(vectorPct / 2) : stage.pct);
+  // Detect "all chunks vectorized but status not yet READY" — finalizing DB write
+  const isFinalizing = isVectorizing && doc.vectorized_chunks >= doc.total_chunks && doc.total_chunks > 0;
+
+  // Overall % — 95% while finalizing (waiting for last DB commit)
+  const overallPct = isReady ? 100
+    : isFinalizing ? 95
+    : isVectorizing ? 50 + Math.round(vectorPct / 2)
+    : stage.pct;
+
+  // Display label
+  const stageLabel = isFinalizing ? 'Finalizing…' : stage.label;
 
   const handleCancel = async () => {
     setCancelling(true);
@@ -80,11 +90,12 @@ const DocumentCard = ({ doc, onCancel }) => {
 
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${
-              isReady  ? 'badge-success' :
-              isFailed ? 'text-red-400 bg-red-500/10 border border-red-500/20' :
-                         'badge-warning'
+              isReady     ? 'badge-success' :
+              isFinalizing? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' :
+              isFailed    ? 'text-red-400 bg-red-500/10 border border-red-500/20' :
+                            'badge-warning'
             }`}>
-              {stage.label}
+              {stageLabel}
             </span>
 
             {doc.total_pages > 0 && (

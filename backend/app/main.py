@@ -26,8 +26,16 @@ def create_app() -> FastAPI:
         lifespan=lifespan
     )
 
-    # Add Middlewares
-    origins = [origin.strip() for origin in settings.BACKEND_CORS_ORIGINS.split(",") if origin.strip()]
+    # Build allowed origins: always include known origins + anything from env
+    ALWAYS_ALLOWED = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "https://edudeck-frontend.onrender.com",
+    ]
+    env_origins = [o.strip() for o in settings.BACKEND_CORS_ORIGINS.split(",") if o.strip()]
+    origins = list(set(ALWAYS_ALLOWED + env_origins))
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
