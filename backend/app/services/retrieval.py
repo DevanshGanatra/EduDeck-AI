@@ -11,11 +11,16 @@ class RetrievalService:
         self.vector_service = VectorizationService(db)
 
     async def retrieve(self, query: str, project_id: UUID, top_k: int = 5) -> List[Dict[str, Any]]:
-        # 1. Embed query
-        response = await self.vector_service.openai_client.embeddings.create(
-            input=[query], model=self.vector_service.model
+        import google.generativeai as genai
+        
+        # 1. Embed query using Gemini (matching the document vectorization)
+        response = genai.embed_content(
+            model="models/gemini-embedding-2",
+            content=query,
+            task_type="retrieval_query",
+            output_dimensionality=768
         )
-        query_embedding = response.data[0].embedding
+        query_embedding = response['embedding']
         
         # 2. Query Postgres directly using pgvector cosine_distance
         stmt = (
