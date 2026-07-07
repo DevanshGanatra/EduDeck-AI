@@ -1,8 +1,13 @@
 import axios from 'axios';
 
-// Create a configured Axios instance
+// In production (Render), VITE_API_URL is not set from the .env file (it's gitignored).
+// We hardcode the production URL as the fallback so it always works on Render.
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  'https://edudeck-backend.onrender.com/api/v1';
+
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1',
+  baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -20,14 +25,12 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Handle global errors (like 401 Unauthorized)
+// Response Interceptor: Handle 401 Unauthorized globally
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // If the token is invalid or expired
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('token');
-      // Dispatch a custom event so the React app can redirect to login
       window.dispatchEvent(new Event('auth-failed'));
     }
     return Promise.reject(error);
