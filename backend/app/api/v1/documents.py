@@ -62,6 +62,31 @@ async def get_document_progress(
     doc = await doc_service.get_document_status(document_id)
     return success_response(data=doc, message="Progress retrieved")
 
+@router.delete("/{document_id}", response_model=StandardResponse[dict])
+async def cancel_or_delete_document(
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Cancel a processing document or delete a ready/failed one.
+    The background task cannot be truly interrupted mid-run (FastAPI background tasks
+    are fire-and-forget), but marking it CANCELLED and deleting the DB record means:
+    - The polling UI immediately shows it as gone.
+    - Even if the background task finishes, its final db.commit() will fail
+      (document no longer exists), which is silently swallowed.
+    """
+    repo = DocumentRepository(db)
+    doc = await repo.get_by_id_internal(document_id)
+
+    if not doc:
+        from app.core.exceptions import NotFoundException
+        raise NotFoundException("Document not found")
+
+    await repo.delete(doc)
+    return success_response(data={"id": str(document_id)}, message="Document cancelled and removed")
+
+
 from app.db.repositories.document_chunk import DocumentChunkRepository
 from app.schemas.document_chunks import DocumentChunkResponse, DocumentAnalyticsResponse, DocumentTimelineResponse
 from app.schemas.project import PaginatedResponse

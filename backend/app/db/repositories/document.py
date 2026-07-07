@@ -30,6 +30,11 @@ class DocumentRepository:
         await self.session.refresh(document)
         return document
 
+    async def delete(self, document: Document) -> None:
+        """Hard-delete a document and all its chunks (cascade handles chunks)."""
+        await self.session.delete(document)
+        await self.session.commit()
+
 class DocumentChunkRepository:
     def __init__(self, session: AsyncSession):
         self.session = session

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, UploadCloud, FileText, CheckCircle, Clock, Zap, Settings, BookOpen, AlertTriangle, Cpu } from 'lucide-react';
+import { ArrowLeft, UploadCloud, FileText, CheckCircle, Zap, Settings, BookOpen, AlertTriangle, Cpu, Trash2, X } from 'lucide-react';
 import apiClient from '../api/axios';
 
 // UI Components
@@ -23,10 +23,12 @@ const STAGES = {
 };
 
 // ── DocumentCard ──────────────────────────────────────────────────────────────
-const DocumentCard = ({ doc }) => {
+const DocumentCard = ({ doc, onCancel }) => {
   const stage = STAGES[doc.status] || STAGES.validating;
   const isReady  = doc.status === 'ready';
   const isFailed = doc.status === 'failed';
+  const [confirming, setConfirming] = React.useState(false);
+  const [cancelling, setCancelling] = React.useState(false);
 
   // During vectorization we have granular chunk-level progress
   const isVectorizing = !isReady && !isFailed && doc.total_chunks > 0;
@@ -37,11 +39,24 @@ const DocumentCard = ({ doc }) => {
   // Overall % — use vector progress if available, else stage-based
   const overallPct = isReady ? 100 : (isVectorizing ? 50 + Math.round(vectorPct / 2) : stage.pct);
 
+  const handleCancel = async () => {
+    setCancelling(true);
+    try {
+      await apiClient.delete(`/documents/${doc.id}`);
+      onCancel(doc.id);
+    } catch (e) {
+      console.error('Cancel failed', e);
+      setCancelling(false);
+      setConfirming(false);
+    }
+  };
+
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -16, height: 0, marginBottom: 0 }}
       className="rounded-xl border p-4 space-y-3"
       style={{
         background: isReady ? 'rgba(16,185,129,0.05)' : isFailed ? 'rgba(239,68,68,0.05)' : 'rgba(255,255,255,0.04)',
@@ -64,7 +79,6 @@ const DocumentCard = ({ doc }) => {
           </p>
 
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {/* Status badge */}
             <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${
               isReady  ? 'badge-success' :
               isFailed ? 'text-red-400 bg-red-500/10 border border-red-500/20' :
@@ -73,12 +87,10 @@ const DocumentCard = ({ doc }) => {
               {stage.label}
             </span>
 
-            {/* Page count */}
             {doc.total_pages > 0 && (
               <span className="text-xs text-muted-foreground">{doc.total_pages} pages</span>
             )}
 
-            {/* Chunk count */}
             {doc.total_chunks > 0 && (
               <span className="text-xs text-muted-foreground">
                 {isVectorizing
@@ -89,14 +101,43 @@ const DocumentCard = ({ doc }) => {
           </div>
         </div>
 
-        {/* Percentage */}
-        {!isFailed && (
-          <span className="text-xs font-mono font-bold tabular-nums" style={{
-            color: isReady ? '#34d399' : '#fbbf24'
-          }}>
-            {overallPct}%
-          </span>
-        )}
+        {/* Right side: % and cancel/delete */}
+        <div className="flex items-center gap-2 shrink-0">
+          {!isFailed && (
+            <span className="text-xs font-mono font-bold tabular-nums" style={{
+              color: isReady ? '#34d399' : '#fbbf24'
+            }}>
+              {overallPct}%
+            </span>
+          )}
+
+          {/* Cancel / Delete button */}
+          {!confirming ? (
+            <button
+              onClick={() => setConfirming(true)}
+              title={isReady ? 'Delete document' : 'Cancel processing'}
+              className="p-1 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all"
+            >
+              <Trash2 size={14} />
+            </button>
+          ) : (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="text-[11px] font-bold px-2 py-0.5 rounded-lg text-red-400 bg-red-500/15 border border-red-500/25 hover:bg-red-500/25 transition-all disabled:opacity-50"
+              >
+                {cancelling ? '…' : isReady ? 'Delete' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => setConfirming(false)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground transition-all"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Progress bar — only while processing */}
@@ -115,7 +156,6 @@ const DocumentCard = ({ doc }) => {
           {/* Stage pipeline dots */}
           <div className="flex items-center justify-between px-0.5">
             {['extracting', 'chunking', 'vectorizing', 'ready'].map((s, i) => {
-              const stageOrder = ['extracting', 'chunking', 'vectorizing', 'ready'];
               const currentOrder = doc.status === 'ready' ? 4
                 : doc.status === 'chunking' || (isVectorizing && vectorPct < 100) ? 2
                 : doc.status === 'extracting' ? 1 : 0;
@@ -125,10 +165,12 @@ const DocumentCard = ({ doc }) => {
                 <div key={s} className="flex flex-col items-center gap-1">
                   <div className={`w-1.5 h-1.5 rounded-full transition-all ${
                     passed ? 'bg-emerald-400' :
-                    active ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)] animate-pulse' :
+                    active ? 'bg-amber-400 animate-pulse' :
                     'bg-white/10'
                   }`} />
-                  <span className={`text-[9px] uppercase tracking-wider ${active ? 'text-amber-400' : 'text-muted-foreground/50'}`}>
+                  <span className={`text-[9px] uppercase tracking-wider ${
+                    active ? 'text-amber-400' : 'text-muted-foreground/50'
+                  }`}>
                     {s === 'vectorizing' ? 'embed' : s}
                   </span>
                 </div>
@@ -144,6 +186,19 @@ const DocumentCard = ({ doc }) => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Inline confirm prompt */}
+      {confirming && (
+        <motion.p
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="text-xs text-muted-foreground"
+        >
+          {isReady
+            ? 'This will permanently delete the document and all its vectors.'
+            : 'This will stop processing and remove all partial data.'}
+        </motion.p>
       )}
 
       {/* Error message */}
@@ -424,7 +479,13 @@ const ProjectDetail = () => {
                     </div>
                   ) : (
                     documents.map((doc) => (
-                      <DocumentCard key={doc.id} doc={doc} />
+                      <DocumentCard
+                        key={doc.id}
+                        doc={doc}
+                        onCancel={(removedId) =>
+                          setDocuments(prev => prev.filter(d => d.id !== removedId))
+                        }
+                      />
                     ))
                   )}
                 </CardContent>

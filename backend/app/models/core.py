@@ -16,6 +16,7 @@ class DocumentStatus(str, enum.Enum):
     CHUNKING = "chunking"
     READY = "ready"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 class ProjectStatus(str, enum.Enum):
     ACTIVE = "active"
