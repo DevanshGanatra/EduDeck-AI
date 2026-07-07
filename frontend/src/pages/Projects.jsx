@@ -1,29 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Plus, FolderOpen, MoreVertical, Search, ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, FolderOpen, MoreVertical, Search, ArrowRight, Layers, X } from 'lucide-react';
 import apiClient from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 
 const Projects = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    fetchProjects();
-  }, []);
+  useEffect(() => { fetchProjects(); }, []);
 
   const fetchProjects = async () => {
     try {
       const res = await apiClient.get('/projects/');
-      // res.data.data will contain the PaginatedResponse
       setProjects(res.data.data.items || []);
     } catch (err) {
-      console.error("Failed to fetch projects", err);
+      console.error('Failed to fetch projects', err);
     } finally {
       setLoading(false);
     }
@@ -33,152 +34,228 @@ const Projects = () => {
     e.preventDefault();
     setCreating(true);
     try {
-      const res = await apiClient.post('/projects/', {
-        title: newTitle,
-        description: newDesc
-      });
+      const res = await apiClient.post('/projects/', { title: newTitle, description: newDesc });
       setProjects([res.data.data, ...projects]);
       setIsModalOpen(false);
       setNewTitle('');
       setNewDesc('');
     } catch (err) {
-      console.error("Failed to create project", err);
+      console.error('Failed to create project', err);
     } finally {
       setCreating(false);
     }
   };
 
+  const filtered = projects.filter(p =>
+    p.title.toLowerCase().includes(search.toLowerCase()) ||
+    (p.description || '').toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="space-y-6">
-      {/* Header Section */}
-      <div className="flex justify-between items-center">
+    <div className="space-y-7 pb-8">
+
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Your Workspaces</h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage your AI presentation projects</p>
+          <h1 className="text-3xl font-bold text-gradient">
+            {user?.name ? `Hello, ${user.name.split(' ')[0]} 👋` : 'Your Workspaces'}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {projects.length} project{projects.length !== 1 ? 's' : ''} — AI presentation generation
+          </p>
         </div>
-        
-        <button 
+
+        <button
           onClick={() => setIsModalOpen(true)}
-          className="btn-primary flex items-center gap-2 shadow-brand-500/20 shadow-lg"
+          className="btn-primary shrink-0"
         >
-          <Plus size={18} />
+          <Plus size={17} />
           New Project
         </button>
       </div>
 
-      <div className="glass-panel p-3 flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search projects..." 
-            className="w-full bg-transparent border-none focus:ring-0 pl-10 py-1 text-sm text-foreground placeholder-muted-foreground outline-none"
-          />
-        </div>
+      {/* ── Search bar ── */}
+      <div className="glass flex items-center gap-3 px-4 py-2.5">
+        <Search size={16} className="text-muted-foreground shrink-0" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search projects…"
+          className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+        />
+        {search && (
+          <button onClick={() => setSearch('')} className="text-muted-foreground hover:text-foreground">
+            <X size={14} />
+          </button>
+        )}
       </div>
 
-      {/* Projects Grid */}
+      {/* ── Grid ── */}
       {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="w-8 h-8 border-4 border-brand-200 border-t-brand-500 rounded-full animate-spin"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="glass rounded-2xl h-44 animate-pulse bg-white/3" />
+          ))}
         </div>
-      ) : projects.length === 0 ? (
-        <div className="glass-panel p-12 text-center flex flex-col items-center">
-          <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4 border border-white/10">
+      ) : filtered.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass flex flex-col items-center justify-center py-24 text-center"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
             <FolderOpen size={32} className="text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold text-foreground">No projects yet</h3>
+          <h3 className="text-lg font-semibold text-foreground">
+            {search ? 'No matching projects' : 'No projects yet'}
+          </h3>
           <p className="text-muted-foreground text-sm max-w-sm mt-2 mb-6">
-            Create your first workspace to start uploading documents and generating AI presentations.
+            {search
+              ? 'Try a different search term.'
+              : 'Create your first workspace to start uploading documents and generating AI presentations.'}
           </p>
-          <button onClick={() => setIsModalOpen(true)} className="btn-secondary">
-            Create First Project
-          </button>
-        </div>
+          {!search && (
+            <button onClick={() => setIsModalOpen(true)} className="btn-secondary">
+              Create First Project
+            </button>
+          )}
+        </motion.div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project, index) => (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filtered.map((project, i) => (
+            <motion.div
               key={project.id}
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06, duration: 0.35 }}
               onClick={() => navigate(`/projects/${project.id}`)}
-              className="glass-panel p-5 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/20 transition-all group cursor-pointer flex flex-col h-full"
+              className="glass-hover p-5 cursor-pointer group flex flex-col min-h-[176px]"
             >
-              <div className="flex justify-between items-start mb-4">
-                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary font-bold text-lg border border-primary/30">
+              {/* Card header */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-11 h-11 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center text-primary font-bold text-lg shrink-0">
                   {project.title.charAt(0).toUpperCase()}
                 </div>
-                <button className="text-muted-foreground hover:text-foreground p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <MoreVertical size={18} />
+                <button
+                  onClick={e => e.stopPropagation()}
+                  className="p-1.5 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-white/8"
+                >
+                  <MoreVertical size={16} />
                 </button>
               </div>
-              <h3 className="font-semibold text-foreground text-lg mb-1 line-clamp-1">{project.title}</h3>
-              <p className="text-muted-foreground text-sm line-clamp-2 mb-4 flex-1">
-                {project.description || "No description provided."}
+
+              {/* Title & description */}
+              <h3 className="font-semibold text-foreground text-base mb-1 line-clamp-1">{project.title}</h3>
+              <p className="text-muted-foreground text-sm line-clamp-2 flex-1">
+                {project.description || 'No description provided.'}
               </p>
-              
-              <div className="pt-4 border-t border-white/10 flex justify-between items-center mt-auto">
-                <span className="text-xs font-medium text-muted-foreground bg-white/5 border border-white/10 px-2 py-1 rounded-md">
-                  {project.document_count || 0} Documents
-                </span>
-                <div className="text-primary text-sm font-medium flex items-center gap-1 group-hover:gap-2 transition-all">
-                  Open <ArrowRight size={14} />
+
+              {/* Footer */}
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/8">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Layers size={12} />
+                  {project.document_count ?? 0} docs
                 </div>
+                <span className="flex items-center gap-1 text-xs font-semibold text-primary opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0">
+                  Open <ArrowRight size={13} />
+                </span>
               </div>
             </motion.div>
           ))}
         </div>
       )}
 
-      {/* Create Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="glass-panel max-w-md w-full overflow-hidden"
+      {/* ── Create Modal ── */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <motion.div
+            key="modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setIsModalOpen(false)}
           >
-            <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center">
-              <h3 className="font-bold text-foreground">Create New Project</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground text-2xl leading-none">&times;</button>
-            </div>
-            
-            <form onSubmit={handleCreateProject} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Project Title</label>
-                <input 
-                  type="text" 
-                  required
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="input-field"
-                  placeholder="e.g. Q3 Marketing Plan"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Description (Optional)</label>
-                <textarea 
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  className="input-field min-h-[100px] resize-none"
-                  placeholder="What is this presentation about?"
-                />
-              </div>
-              
-              <div className="pt-2 flex gap-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 btn-secondary py-2.5">
-                  Cancel
-                </button>
-                <button type="submit" disabled={creating} className="flex-1 btn-primary py-2.5">
-                  {creating ? 'Creating...' : 'Create Project'}
+            <motion.div
+              key="modal"
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 16 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="glass w-full max-w-md overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.6)]"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Top accent */}
+              <div className="h-px w-full bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+
+              <div className="px-6 pt-6 pb-4 flex items-center justify-between">
+                <h3 className="font-bold text-foreground text-lg">Create New Project</h3>
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-white/8"
+                >
+                  <X size={18} />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleCreateProject} className="px-6 pb-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Project Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newTitle}
+                    onChange={e => setNewTitle(e.target.value)}
+                    className="input-field w-full"
+                    placeholder="e.g. Q3 Marketing Strategy"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Description
+                  </label>
+                  <textarea
+                    value={newDesc}
+                    onChange={e => setNewDesc(e.target.value)}
+                    className="input-field w-full min-h-[90px] resize-none"
+                    placeholder="What is this presentation about?"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creating || !newTitle.trim()}
+                    className="btn-primary flex-1"
+                  >
+                    {creating ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Creating…
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={16} /> Create Project
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </motion.div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 };

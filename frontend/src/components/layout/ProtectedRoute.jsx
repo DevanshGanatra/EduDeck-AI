@@ -9,8 +9,14 @@ const ProtectedRoute = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-900">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative w-12 h-12">
+            <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
+            <div className="absolute inset-0 rounded-full border-2 border-t-primary border-r-primary border-b-transparent border-l-transparent animate-spin" />
+          </div>
+          <p className="text-sm text-muted-foreground font-medium tracking-wide">Loading workspace…</p>
+        </div>
       </div>
     );
   }

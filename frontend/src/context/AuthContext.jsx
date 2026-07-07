@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import apiClient from '../api/axios';
+
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -6,7 +8,6 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
 
-  // Fetch user data when token changes
   useEffect(() => {
     const fetchUser = async () => {
       if (!token) {
@@ -14,71 +15,47 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
         return;
       }
-
       try {
-        const response = await fetch('/api/v1/auth/me', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data.data); // UserResponse schema includes `credits`
-        } else {
-          // Token invalid or expired
-          logout();
-        }
+        // Use apiClient so we hit the correct backend URL (VITE_API_URL)
+        const res = await apiClient.get('/auth/me');
+        setUser(res.data.data);
       } catch (error) {
-        console.error('Failed to fetch user:', error);
+        // Token invalid/expired — clear it
+        localStorage.removeItem('token');
+        setToken(null);
+        setUser(null);
       } finally {
         setLoading(false);
       }
     };
-
     fetchUser();
   }, [token]);
 
   const login = async (email, password) => {
-    const formData = new URLSearchParams();
-    formData.append('username', email);
-    formData.append('password', password);
+    try {
+      const formData = new URLSearchParams();
+      formData.append('username', email);
+      formData.append('password', password);
 
-    const response = await fetch('/api/v1/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData.toString()
-    });
+      const res = await apiClient.post('/auth/login', formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
 
-    const data = await response.json();
-    
-    if (response.ok) {
-      const accessToken = data.data.access_token;
+      const accessToken = res.data.data.access_token;
       localStorage.setItem('token', accessToken);
       setToken(accessToken);
       return { success: true };
-    } else {
-      return { success: false, error: data.message || 'Login failed' };
+    } catch (err) {
+      return { success: false, error: err.response?.data?.detail || err.response?.data?.message || 'Login failed' };
     }
   };
 
   const register = async (email, password, name) => {
     try {
-      const response = await fetch('/api/v1/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name })
-      });
-      
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || 'Registration failed');
-      }
-      
-      // Auto login after register
+      await apiClient.post('/auth/register', { email, password, name });
       return await login(email, password);
-    } catch (error) {
-      return { success: false, error: error.message };
+    } catch (err) {
+      return { success: false, error: err.response?.data?.detail || err.response?.data?.message || 'Registration failed' };
     }
   };
 
@@ -91,15 +68,10 @@ export const AuthProvider = ({ children }) => {
   const refreshUser = async () => {
     if (!token) return;
     try {
-      const response = await fetch('/api/v1/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.data);
-      }
+      const res = await apiClient.get('/auth/me');
+      setUser(res.data.data);
     } catch (e) {
-      console.error(e);
+      console.error('refreshUser failed', e);
     }
   };
 
