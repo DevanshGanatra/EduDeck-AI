@@ -36,10 +36,20 @@ async def generate_presentation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # 1. Create a PENDING job
+    from fastapi import HTTPException
+    
+    # 0. Check credits
+    if current_user.credits <= 0:
+        raise HTTPException(status_code=402, detail="Insufficient credits to generate presentation.")
+
+    # 1. Create a PENDING job & Deduct Credit
     job_id = uuid.uuid4()
     job = GenerationJob(id=job_id, project_id=req.project_id, status=JobStatus.PENDING)
     db.add(job)
+    
+    current_user.credits -= 1
+    db.add(current_user)
+    
     await db.commit()
     
     # 2. Try to Enqueue the ARQ task, fallback to BackgroundTasks

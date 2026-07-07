@@ -10,7 +10,8 @@ const Login = () => {
   const [password, setPassword] = useState('Password123'); // Prefilled for testing
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { login, register, error, user } = useAuth();
+  const { login, register, user } = useAuth();
+  const [error, setError] = useState(null);
 
   if (user) {
     return <Navigate to="/projects" replace />;
@@ -19,19 +20,23 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
     try {
+      let result;
       if (isLogin) {
-        const success = await login(email, password);
-        if (success) {
-          navigate('/projects');
-        }
+        result = await login(email, password);
       } else {
-        const success = await register(email, password, null);
-        if (success) {
-          navigate('/projects');
-        }
+        result = await register(email, password, 'New User');
       }
+      
+      if (result && result.success) {
+        navigate('/projects');
+      } else {
+        setError(result?.error || 'Authentication failed');
+      }
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }

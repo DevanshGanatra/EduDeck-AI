@@ -8,12 +8,14 @@ import {
   PieChart
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    logout();
     navigate('/login');
   };
 
@@ -60,13 +62,41 @@ const Sidebar = () => {
         </nav>
       </div>
 
-      <button
-        onClick={handleLogout}
-        className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors w-full text-left"
-      >
-        <LogOut size={20} className="shrink-0" />
-        <span className="font-medium">Logout</span>
-      </button>
+      <div className="flex flex-col gap-4">
+        {/* User Profile & Credits */}
+        {user && (
+          <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold border border-brand-200">
+                {user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-sm font-bold text-gray-900 truncate">{user.name || 'User'}</p>
+                <p className="text-xs text-gray-500 truncate">{user.email}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200 mb-3">
+              <span className="text-xs font-medium text-gray-500">Balance</span>
+              <span className="text-sm font-bold text-brand-700 flex items-center gap-1">
+                <span>⚡</span> {user.credits}
+              </span>
+            </div>
+            
+            <button className="w-full py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm cursor-not-allowed opacity-80" title="Coming Soon">
+              Buy Credits
+            </button>
+          </div>
+        )}
+
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors w-full text-left"
+        >
+          <LogOut size={20} className="shrink-0" />
+          <span className="font-medium">Logout</span>
+        </button>
+      </div>
     </motion.aside>
   );
 };

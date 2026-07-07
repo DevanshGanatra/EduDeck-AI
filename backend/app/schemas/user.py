@@ -23,6 +23,7 @@ class UserCreate(UserBase):
 class UserResponse(UserBase):
     id: UUID
     role: str
+    credits: int
     created_at: datetime
 
     class Config:

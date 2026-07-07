@@ -28,6 +28,7 @@ class User(Base, TimestampMixin):
     password_hash = Column(String(255), nullable=False)
     name = Column(String(255), nullable=True)
     role = Column(SQLEnum(UserRole), default=UserRole.USER, nullable=False)
+    credits = Column(Integer, default=3, nullable=False)
 
     projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan", lazy="selectin")
 
