@@ -50,7 +50,8 @@ class VectorizationService:
                     response = genai.embed_content(
                         model=self.model,
                         content=batch_texts,
-                        task_type="retrieval_document"
+                        task_type="retrieval_document",
+                        output_dimensionality=768
                     )
                     embeddings.extend(response['embedding'])
                     break

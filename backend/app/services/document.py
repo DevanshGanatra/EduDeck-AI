@@ -120,8 +120,14 @@ class DocumentService:
                 await repo.update(doc)
                 
             except Exception as e:
+                await session.rollback() # Fix: Must rollback failed transaction before saving error state!
                 doc.status = DocumentStatus.FAILED
                 doc.failed_stage = doc.status.value # whatever status it failed on
                 doc.error_message = str(e)
                 doc.processing_completed_at = datetime.now(timezone.utc)
-                await repo.update(doc)
+                # Try to save the failed state. If this fails, there's nothing we can do but log it.
+                try:
+                    await repo.update(doc)
+                except Exception as inner_e:
+                    import logging
+                    logging.error(f"Failed to save document error state: {inner_e}")
