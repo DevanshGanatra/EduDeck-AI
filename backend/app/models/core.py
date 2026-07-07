@@ -67,6 +67,7 @@ class Document(Base, TimestampMixin):
     total_words = Column(Integer, default=0)
     estimated_tokens = Column(Integer, default=0)
     total_chunks = Column(Integer, default=0)
+    vectorized_chunks = Column(Integer, default=0)  # Live progress during embedding
     average_chunk_size = Column(Float, default=0.0)
     largest_chunk_size = Column(Integer, default=0)
     smallest_chunk_size = Column(Integer, default=0)

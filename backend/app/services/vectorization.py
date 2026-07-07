@@ -1,6 +1,5 @@
 from uuid import UUID
 from typing import List, Dict
-from openai import AsyncOpenAI
 from app.core.config import settings
 from app.db.repositories.document_chunk import DocumentChunkRepository
 from app.db.repositories.document import DocumentRepository
@@ -23,16 +22,24 @@ class VectorizationService:
 
     async def vectorize_document(self, document_id: UUID, project_id: UUID) -> None:
         # Get chunks
-        items, _ = await self.chunk_repo.get_paginated_by_document(document_id, page=1, page_size=10000)
+        items, total = await self.chunk_repo.get_paginated_by_document(document_id, page=1, page_size=10000)
         if not items:
             return
+
+        # Pre-set total_chunks so the frontend knows the denominator immediately
+        doc = await self.doc_repo.get_by_id_internal(document_id)
+        if doc:
+            doc.total_chunks = total
+            doc.vectorized_chunks = 0
+            await self.db.commit()
             
         texts = [chunk.chunk_text for chunk in items]
         
-        # Generate Embeddings in batch using Gemini
-        # Gemini free tier limits to 15 RPM, so we must sleep and retry on 429
+        # Generate embeddings in batches of 50
         batch_size = 50
         embeddings = []
+        vectorized_so_far = 0
+
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i:i + batch_size]
             
@@ -50,14 +57,22 @@ class VectorizationService:
                 except Exception as e:
                     if '429' in str(e) or isinstance(e, ResourceExhausted):
                         if attempt < max_retries - 1:
-                            print(f"Rate limited. Sleeping 30s. Attempt {attempt+1}/{max_retries}")
-                            time.sleep(30)
+                            wait = 30 * (attempt + 1)
+                            print(f"Rate limited. Sleeping {wait}s. Attempt {attempt+1}/{max_retries}")
+                            time.sleep(wait)
                         else:
                             raise e
                     else:
                         raise e
-            
-        # Update PG Metadata and store pgvector embeddings directly
+
+            # Update vectorized_chunks progress after each batch
+            vectorized_so_far += len(batch_texts)
+            doc = await self.doc_repo.get_by_id_internal(document_id)
+            if doc:
+                doc.vectorized_chunks = vectorized_so_far
+                await self.db.commit()
+
+        # Store the embeddings in PG
         for i, chunk in enumerate(items):
             chunk.embedding_provider = "gemini"
             chunk.embedding_model = self.model

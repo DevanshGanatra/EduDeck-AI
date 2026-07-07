@@ -22,6 +22,7 @@ class DocumentResponse(DocumentBase):
     total_pages: int
     total_characters: int
     total_chunks: int
+    vectorized_chunks: int = 0
     average_chunk_size: float
     
     failed_stage: Optional[str] = None
@@ -39,5 +40,9 @@ class DocumentProgressResponse(BaseModel):
     status: DocumentStatus
     total_pages: int
     total_chunks: int
+    vectorized_chunks: int = 0
     failed_stage: Optional[str] = None
     error_message: Optional[str] = None
+
+    class Config:
+        from_attributes = True

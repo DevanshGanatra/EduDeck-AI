@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, UploadCloud, FileText, CheckCircle, Clock, Zap, Settings, BookOpen } from 'lucide-react';
+import { ArrowLeft, UploadCloud, FileText, CheckCircle, Clock, Zap, Settings, BookOpen, AlertTriangle, Cpu } from 'lucide-react';
 import apiClient from '../api/axios';
 
 // UI Components
@@ -10,6 +10,153 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Textarea } from '../components/ui/textarea';
 import { Progress } from '../components/ui/progress';
+
+// ── Stage config ──────────────────────────────────────────────────────────────
+const STAGES = {
+  uploading:   { label: 'Uploading',        pct: 5,  color: 'bg-blue-400' },
+  validating:  { label: 'Validating',       pct: 15, color: 'bg-blue-400' },
+  stored:      { label: 'Stored',           pct: 20, color: 'bg-blue-400' },
+  extracting:  { label: 'Extracting text',  pct: 35, color: 'bg-amber-400' },
+  chunking:    { label: 'Chunking pages',   pct: 55, color: 'bg-amber-400' },
+  ready:       { label: 'Ready',            pct: 100, color: 'bg-emerald-400' },
+  failed:      { label: 'Failed',           pct: 100, color: 'bg-red-400' },
+};
+
+// ── DocumentCard ──────────────────────────────────────────────────────────────
+const DocumentCard = ({ doc }) => {
+  const stage = STAGES[doc.status] || STAGES.validating;
+  const isReady  = doc.status === 'ready';
+  const isFailed = doc.status === 'failed';
+
+  // During vectorization we have granular chunk-level progress
+  const isVectorizing = !isReady && !isFailed && doc.total_chunks > 0;
+  const vectorPct = isVectorizing && doc.total_chunks > 0
+    ? Math.round((doc.vectorized_chunks / doc.total_chunks) * 100)
+    : 0;
+
+  // Overall % — use vector progress if available, else stage-based
+  const overallPct = isReady ? 100 : (isVectorizing ? 50 + Math.round(vectorPct / 2) : stage.pct);
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border p-4 space-y-3"
+      style={{
+        background: isReady ? 'rgba(16,185,129,0.05)' : isFailed ? 'rgba(239,68,68,0.05)' : 'rgba(255,255,255,0.04)',
+        borderColor: isReady ? 'rgba(16,185,129,0.2)' : isFailed ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.08)',
+      }}
+    >
+      {/* Top row: icon + filename + status badge */}
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 shrink-0">
+          {isReady  && <CheckCircle   size={17} className="text-emerald-400" />}
+          {isFailed && <AlertTriangle size={17} className="text-red-400" />}
+          {!isReady && !isFailed && (
+            <div className="w-[17px] h-[17px] rounded-full border-2 border-amber-400/30 border-t-amber-400 animate-spin" />
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate" title={doc.filename}>
+            {doc.filename}
+          </p>
+
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {/* Status badge */}
+            <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${
+              isReady  ? 'badge-success' :
+              isFailed ? 'text-red-400 bg-red-500/10 border border-red-500/20' :
+                         'badge-warning'
+            }`}>
+              {stage.label}
+            </span>
+
+            {/* Page count */}
+            {doc.total_pages > 0 && (
+              <span className="text-xs text-muted-foreground">{doc.total_pages} pages</span>
+            )}
+
+            {/* Chunk count */}
+            {doc.total_chunks > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {isVectorizing
+                  ? `${doc.vectorized_chunks} / ${doc.total_chunks} vectors`
+                  : `${doc.total_chunks} vectors`}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Percentage */}
+        {!isFailed && (
+          <span className="text-xs font-mono font-bold tabular-nums" style={{
+            color: isReady ? '#34d399' : '#fbbf24'
+          }}>
+            {overallPct}%
+          </span>
+        )}
+      </div>
+
+      {/* Progress bar — only while processing */}
+      {!isReady && !isFailed && (
+        <div className="space-y-1.5">
+          <div className="h-1.5 rounded-full overflow-hidden" style={{background:'rgba(255,255,255,0.06)'}}>
+            <motion.div
+              className={`h-full rounded-full ${stage.color}`}
+              initial={{ width: 0 }}
+              animate={{ width: `${overallPct}%` }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+              style={{ boxShadow: '0 0 8px rgba(251,191,36,0.5)' }}
+            />
+          </div>
+
+          {/* Stage pipeline dots */}
+          <div className="flex items-center justify-between px-0.5">
+            {['extracting', 'chunking', 'vectorizing', 'ready'].map((s, i) => {
+              const stageOrder = ['extracting', 'chunking', 'vectorizing', 'ready'];
+              const currentOrder = doc.status === 'ready' ? 4
+                : doc.status === 'chunking' || (isVectorizing && vectorPct < 100) ? 2
+                : doc.status === 'extracting' ? 1 : 0;
+              const passed = i < currentOrder;
+              const active = i === currentOrder;
+              return (
+                <div key={s} className="flex flex-col items-center gap-1">
+                  <div className={`w-1.5 h-1.5 rounded-full transition-all ${
+                    passed ? 'bg-emerald-400' :
+                    active ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)] animate-pulse' :
+                    'bg-white/10'
+                  }`} />
+                  <span className={`text-[9px] uppercase tracking-wider ${active ? 'text-amber-400' : 'text-muted-foreground/50'}`}>
+                    {s === 'vectorizing' ? 'embed' : s}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Vectorization detail row */}
+          {isVectorizing && doc.total_chunks > 0 && (
+            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+              <Cpu size={11} className="text-primary animate-pulse shrink-0" />
+              <span>Embedding {doc.vectorized_chunks}/{doc.total_chunks} chunks with Gemini…</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Error message */}
+      {isFailed && doc.error_message && (
+        <p className="text-xs text-red-400/80 bg-red-500/5 rounded-lg px-3 py-2 border border-red-500/10">
+          {doc.error_message}
+        </p>
+      )}
+    </motion.div>
+  );
+};
+
+
 
 const ProjectDetail = () => {
   const { id } = useParams();
@@ -30,21 +177,16 @@ const ProjectDetail = () => {
   const [exporting, setExporting] = useState(false);
   const [presentationUrl, setPresentationUrl] = useState(null);
 
+  // Refresh documents every 2.5s if any are still processing
   useEffect(() => {
     fetchDocuments();
-    
-    // Poll for document status
     const interval = setInterval(() => {
-      setDocuments(currentDocs => {
-        // Only fetch if there's a document still processing
-        const needsPolling = currentDocs.some(d => d.status !== 'ready' && d.status !== 'failed');
-        if (needsPolling) {
-          fetchDocuments();
-        }
-        return currentDocs;
+      setDocuments(prev => {
+        const needsPolling = prev.some(d => d.status !== 'ready' && d.status !== 'failed');
+        if (needsPolling) fetchDocuments();
+        return prev;
       });
-    }, 3000);
-    
+    }, 2500);
     return () => clearInterval(interval);
   }, [id]);
 
@@ -275,41 +417,15 @@ const ProjectDetail = () => {
                   </CardTitle>
                   <CardDescription>Documents embedded in the vector store.</CardDescription>
                 </CardHeader>
-                <CardContent className="flex-1 overflow-y-auto">
+                <CardContent className="flex-1 overflow-y-auto space-y-3">
                   {documents.length === 0 ? (
-                    <div className="text-center p-8 bg-white/5 rounded-xl border border-dashed border-white/10">
-                      <p className="text-sm text-muted-foreground">The index is empty.</p>
+                    <div className="text-center p-8 rounded-xl border border-dashed border-white/10" style={{background:'rgba(255,255,255,0.03)'}}>
+                      <p className="text-sm text-muted-foreground">No documents yet. Upload a PDF to start.</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {documents.map((doc) => (
-                        <div key={doc.id} className="p-4 bg-white/5 rounded-xl border border-white/10 flex items-start gap-3 hover:bg-white/10 transition-all cursor-default">
-                          <div className="mt-0.5 text-primary">
-                            {doc.status === 'ready' ? (
-                              <CheckCircle size={18} className="text-green-500" />
-                            ) : (
-                              <div className="relative">
-                                <Clock size={18} className="text-amber-500 opacity-50" />
-                                <div className="absolute inset-0 border-2 border-amber-500 rounded-full border-t-transparent animate-spin"></div>
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1 overflow-hidden">
-                            <p className="text-sm font-medium truncate" title={doc.filename}>{doc.filename}</p>
-                            <div className="flex justify-between items-center mt-2">
-                              <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-bold ${
-                                doc.status === 'ready' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                              }`}>
-                                {doc.status || 'PROCESSING'}
-                              </span>
-                              <span className="text-xs font-mono text-muted-foreground">
-                                {doc.total_chunks || 0} vectors
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    documents.map((doc) => (
+                      <DocumentCard key={doc.id} doc={doc} />
+                    ))
                   )}
                 </CardContent>
               </Card>
