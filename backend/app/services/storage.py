@@ -36,7 +36,9 @@ class LocalStorageService(StorageService):
         
     def get_file_path(self, file_reference: str) -> str:
         filename = os.path.basename(file_reference)
-        return f"http://localhost:8080/downloads/{filename}"
+        # Fix: Use the production Render URL instead of hardcoded localhost
+        base_url = os.environ.get("BACKEND_URL", "https://edudeck-backend.onrender.com")
+        return f"{base_url}/downloads/{filename}"
 
 class S3StorageService(StorageService):
     def __init__(self):
