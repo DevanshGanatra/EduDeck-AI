@@ -121,19 +121,23 @@ const DocumentCard = ({ doc, onCancel }) => {
               <Trash2 size={14} />
             </button>
           ) : (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={handleCancel}
                 disabled={cancelling}
-                className="text-[11px] font-bold px-2 py-0.5 rounded-lg text-red-400 bg-red-500/15 border border-red-500/25 hover:bg-red-500/25 transition-all disabled:opacity-50"
+                className="text-[11px] font-bold px-2.5 py-1 rounded-lg text-white bg-red-500/80 hover:bg-red-500 border border-red-500/50 transition-all disabled:opacity-50 flex items-center gap-1"
               >
-                {cancelling ? '…' : isReady ? 'Delete' : 'Cancel'}
+                {cancelling ? (
+                  <><div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> Removing…</>
+                ) : (
+                  isReady ? '🗑 Delete' : '⏹ Stop & Delete'
+                )}
               </button>
               <button
                 onClick={() => setConfirming(false)}
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground transition-all"
+                className="text-[11px] px-2 py-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
               >
-                <X size={13} />
+                Keep
               </button>
             </div>
           )}
